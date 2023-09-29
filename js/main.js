@@ -1,42 +1,44 @@
 
-let c;
-let ctx;
+let canvas;
+let canvasContext;
 let timeoutHandle;
 
 onload = () => {
-    c = document.getElementById("canvas");
-    ctx = c.getContext("2d");
+    canvas = document.getElementById("canvas");
+    canvasContext = canvas.getContext("2d");
 
-    let time = document.getElementById("time");
-    time.innerText = Date();
+    let timeDiv = document.getElementById("timeDiv");
+    timeDiv.innerText = Date();
 
     init();
 
-    c.onmousedown = (e) => {
+    canvas.onmousedown = (mouseEvent) => {
         clearTimeout(timeoutHandle);
         timeoutHandle = setTimeout(() => {
-            clearAll();
+            clearCanvas();
             drawGrid();
             mainLoop();
         }, 100);
-        let ele = windowToCanvas(c, e.clientX, e.clientY);
-        let { x, y } = ele;
-        if (x > bx && x < bx+50*lx && y > by && y < by+50*ly) {
-            onclick(Math.floor((x-bx)/50), Math.floor((y-by)/50));
+        
+        // x和y参数为点击处相对于canvas原点的坐标
+        let { x, y } = windowToCanvas(canvas, mouseEvent.clientX, mouseEvent.clientY);
+        if (x > bx && x < bx+lSize*lx && y > by && y < by+lSize*ly) {
+            canvasClickHandler(Math.floor((x-bx)/lSize), Math.floor((y-by)/lSize));
         }
     };
 };
 
-const lx = 14, ly = 10;
-const level = 20;
-let bx, by;
+const lx = 14, ly = 10; // 砖块数量 (lx*ly)
+const lSize = 50; // 砖块大小
+const level = 20; // 难度级别, 即多少种不同的砖块
+let bx, by; //
 let icons, colors, tiles;
 let select1, select2;
 
 const init = () => {
 
-    bx = (c.width - 50 * lx)/2;
-    by = (c.height - 50 * ly)/2;
+    bx = (canvas.width - lSize * lx)/2;
+    by = (canvas.height - lSize * ly)/2;
 
     icons = [
         "🐻","🐷","🐪","🐳","🐘","🐙","🐸","🐵","🐭","🐼",
@@ -45,7 +47,7 @@ const init = () => {
 
     colors = [];
     for (let i = 0; i < level; i++) {
-        colors[i] = randomColor();
+        colors[i] = getRandomColor();
     }
 
     tiles = [];
@@ -71,12 +73,13 @@ const init = () => {
         tiles[bx][by] = tmp;
     }
 
-    clearAll();
+    clearCanvas();
     drawGrid();
     mainLoop();
 };
 
-const onclick = (i, j) => {
+// 坐标为(i, j)的格子被点击事件的处理函数
+const canvasClickHandler = (i, j) => {
     drawBox(i, j);
     if (tiles[i][j] !== null) {
         if (!select1) {
@@ -95,6 +98,7 @@ const onclick = (i, j) => {
     }
 };
 
+// 已选择的两点后的处理函数
 const check = (point1, point2) => {
     if (tiles[point1.i][point1.j] !== tiles[point2.i][point2.j]) {
         return;
@@ -172,6 +176,43 @@ const check = (point1, point2) => {
     }
 };
 
+// 主循环
+const mainLoop = () => {
+    for (let i = 0; i < tiles.length; i++) {
+        for (let j = 0; j < tiles[i].length; j++) {
+            if (tiles[i][j] !== null) {
+                canvasContext.fillStyle = colors[tiles[i][j]];
+                canvasContext.fillRect(bx+i*lSize, by+j*lSize, lSize, lSize);
+                canvasContext.font="32px Arial";
+                canvasContext.fillStyle = "#ffffff";
+                canvasContext.fillText(icons[tiles[i][j]], bx+i*lSize+4, by+j*lSize+37);
+            }
+        }
+    }
+    if (select1) {
+        drawBox(select1.i, select1.j);
+    }
+    if (select2) {
+        drawBox(select2.i, select2.j);
+    }
+
+    for (let i = 0; i<lx; i++) {
+        for (let j = 0; j<ly; j++) {
+            if (tiles[i][j] !== null) return;
+        }
+    }
+
+    drawSuccess();
+};
+
+// ---------- 工具函数 ---------- //
+
+// 判断坐标(i, j)的格子是否为可选择的砖块: true/false
+const isBlocked = (i, j) => {
+    return i >= 0 && i < lx && j >= 0 && j < ly && tiles[i][j] !== null;
+};
+
+// 判断两砖块是否符合消除要求: true/false
 const isConnected = (point1, point2) => {
     let a, b;
     if (point1.i === point2.i) {
@@ -203,64 +244,8 @@ const isConnected = (point1, point2) => {
     }
 };
 
-const isBlocked = (i, j) => {
-    return i >= 0 && i < lx && j >= 0 && j < ly && tiles[i][j] !== null;
-};
-
-const clearAll = () => {
-    // ctx.clearRect(0, 0, c.width, c.height);
-    c.setAttribute('width', c.width);
-    c.setAttribute('height', c.height);
-};
-
-const drawGrid = () => {
-    ctx.lineWidth = 1;
-    ctx.fillStyle = "#cdcdcd";
-    ctx.strokeStyle = "#ededed";
-    ctx.font = "10px sans-serif";
-    for (let i = 0; i < c.width; i+=100) {
-        ctx.fillText(i+"", i, 10);
-        ctx.moveTo(i, 0);
-        ctx.lineTo(i, c.height);
-    }
-    for (let j = 0; j < c.height; j+=100) {
-        ctx.fillText(j+"", 0, j);
-        ctx.moveTo(0, j);
-        ctx.lineTo(c.width, j);
-    }
-    ctx.stroke();
-
-};
-
-const mainLoop = () => {
-    for (let i = 0; i < tiles.length; i++) {
-        for (let j = 0; j < tiles[i].length; j++) {
-            if (tiles[i][j] !== null) {
-                ctx.fillStyle = colors[tiles[i][j]];
-                ctx.fillRect(bx+i*50, by+j*50, 50, 50);
-                ctx.font="32px Arial";
-                ctx.fillStyle = "#ffffff";
-                ctx.fillText(icons[tiles[i][j]], bx+i*50+4, by+j*50+37);
-            }
-        }
-    }
-    if (select1) {
-        drawBox(select1.i, select1.j);
-    }
-    if (select2) {
-        drawBox(select2.i, select2.j);
-    }
-
-    for (let i = 0; i<lx; i++) {
-        for (let j = 0; j<ly; j++) {
-            if (tiles[i][j] !== null) return;
-        }
-    }
-
-    drawSuccess();
-};
-
-const randomColor = () => {
+// 生成随机颜色: "#RGB"
+const getRandomColor = () => {
     let color = "", x;
     for (let i = 0; i < 3; i++) {
         x = Math.floor(Math.random() * 256).toString(16);
@@ -270,44 +255,77 @@ const randomColor = () => {
     return "#" + color;
 };
 
+// 删除指定砖块
 const removeTile = (i, j) => {
     tiles[i][j] = null;
 };
 
+// ---------- 绘图函数 ---------- //
+
+// 清空屏幕
+const clearCanvas = () => {
+    // canvasContext.clearRect(0, 0, canvas.width, canvas.height);
+    canvas.setAttribute('width', canvas.width);
+    canvas.setAttribute('height', canvas.height);
+};
+
+// 绘制背景 (栅格线)
+const drawGrid = () => {
+    canvasContext.lineWidth = 1;
+    canvasContext.fillStyle = "#cdcdcd";
+    canvasContext.strokeStyle = "#ededed";
+    canvasContext.font = "10px sans-serif";
+    for (let i = 0; i < canvas.width; i+=100) {
+        canvasContext.fillText(i+"", i, 10);
+        canvasContext.moveTo(i, 0);
+        canvasContext.lineTo(i, canvas.height);
+    }
+    for (let j = 0; j < canvas.height; j+=100) {
+        canvasContext.fillText(j+"", 0, j);
+        canvasContext.moveTo(0, j);
+        canvasContext.lineTo(canvas.width, j);
+    }
+    canvasContext.stroke();
+
+};
+
+// 绘制直线
 const drawLine = (point1, point2) => {
-    ctx.lineWidth = 5;
-    ctx.strokeStyle = "#fffd00";
-    ctx.beginPath();
-    ctx.moveTo(bx+point1.i*50+25, by+point1.j*50+25);
-    ctx.lineTo(bx+point2.i*50+25, by+point2.j*50+25);
-    ctx.stroke();
+    canvasContext.lineWidth = 5;
+    canvasContext.strokeStyle = "#fffd00";
+    canvasContext.beginPath();
+    canvasContext.moveTo(bx+point1.i*lSize+(lSize/2), by+point1.j*lSize+(lSize/2));
+    canvasContext.lineTo(bx+point2.i*lSize+(lSize/2), by+point2.j*lSize+(lSize/2));
+    canvasContext.stroke();
 };
 
+// 在指定坐标的砖块外绘制一个选中框
 const drawBox = (i, j) => {
-    ctx.fillStyle = "#00000022";
-    ctx.fillRect(bx+i*50, by+j*50, 50, 50);
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = "#0099ff";
-    ctx.strokeRect(bx+i*50, by+j*50, 50, 50);
+    canvasContext.fillStyle = "#00000022";
+    canvasContext.fillRect(bx+i*lSize, by+j*lSize, lSize, lSize);
+    canvasContext.lineWidth = 2;
+    canvasContext.strokeStyle = "#0099ff";
+    canvasContext.strokeRect(bx+i*lSize, by+j*lSize, lSize, lSize);
 };
 
+// 绘制成功庆祝画面
 const drawSuccess = () => {
 
     let timeHandle = setInterval(() => {
-        ctx.font = 22 + Math.floor(Math.random()*40) + "px Arial";
-        ctx.fillText(icons[Math.floor(Math.random()*20)], -100+Math.random()*(c.width+200), -100+Math.random()*(c.height+200));
+        canvasContext.font = 22 + Math.floor(Math.random()*40) + "px Arial";
+        canvasContext.fillText(icons[Math.floor(Math.random()*20)], -100+Math.random()*(canvas.width+200), -100+Math.random()*(canvas.height+200));
     }, 50);
 
     setTimeout(() => {
         clearInterval(timeHandle);
-        ctx.font = "64px Arial";
-        ctx.fillStyle = "#ffffff";
-        ctx.fillRect(c.width/2-150, c.height/2-70, 300, 100);
-        ctx.strokeStyle = "#cdcdcd";
-        ctx.lineWidth = 5;
-        ctx.strokeRect(c.width/2-150, c.height/2-70, 300, 100);
-        ctx.fillStyle = "#cdcdcd";
-        ctx.fillText("Success!", c.width/2-130, c.height/2);
+        canvasContext.font = "64px Arial";
+        canvasContext.fillStyle = "#ffffff";
+        canvasContext.fillRect(canvas.width/2-150, canvas.height/2-70, 300, 100);
+        canvasContext.strokeStyle = "#cdcdcd";
+        canvasContext.lineWidth = 5;
+        canvasContext.strokeRect(canvas.width/2-150, canvas.height/2-70, 300, 100);
+        canvasContext.fillStyle = "#cdcdcd";
+        canvasContext.fillText("Success!", canvas.width/2-130, canvas.height/2);
     }, 3000);
 };
 
